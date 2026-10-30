@@ -1,8 +1,10 @@
-all: 
-	docker-compose up --build -d
+.PHONY: all stop evaluation
 
-stop: 
-	docker-compose down
+all:
+	docker compose up --build -d
+
+stop:
+	docker compose down
 
 evaluation:
-	docker-compose up --build -d evaluation
+	docker compose up --build -d evaluation

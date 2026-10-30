@@ -2,10 +2,75 @@ services:
   news-classifier-api:
     build: ./src/api
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     restart: always
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   evaluation:
     build: ./src/evaluation
     depends_on:
-      - news-classifier-api
+      news-classifier-api:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./deployment/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./deployment/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    restart: always
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    container_name: grafana
+    environment:
+      # No usage reports, update checks, news feed or Gravatar images.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # Pin the Prometheus data source plugin, which Grafana 13 installs at start.
+      GF_PLUGINS_PREINSTALL_SYNC: "prometheus@13.2.3"
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      # Skip the default plugins this stack does not use.
+      GF_PLUGINS_DISABLE_PLUGINS: "elasticsearch,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-postgresql-datasource,grafana-pyroscope-app,grafana-pyroscope-datasource,influxdb,jaeger,loki,mssql,mysql,opentsdb,stackdriver,tempo,zipkin"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: always
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: node-exporter
+    ports:
+      - "127.0.0.1:9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/run/docker/netns/.+)$$"
+    restart: always
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}

@@ -1,0 +1,11 @@
+groups:
+  - name: news-classifier-alerts
+    rules:
+      - alert: news-classifier-alerts
+        expr: up{job="news_classifier_api"} == 0 # The PromQL condition that triggers the alert
+        for: 1m # The alert triggers if the condition is true for 1 continuous minute
+        labels:
+          severity: critical # Label for the severity of the alert (useful for filtering and prioritizing)
+        annotations:
+          summary: "The news classification API is unreachable."
+          description: "The job 'news_classifier_api' has been DOWN (unreachable) for more than 1 minute. Please check the `news-classifier-api` service."
